@@ -1286,7 +1286,7 @@ function mkStatus(budget,used){
 }
 
 // ── Auto-load จาก Google Sheets ──────────────────────────────────────────
-const GSHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTAZ0vSAr6_9Ad2OgG4PneRQeri-gREvOhpr0gy9lnYzBPhD0tR9CWTqiZcSCsM0Q/pub?output=xlsx';
+const GSHEET_URL = 'https://script.google.com/macros/s/AKfycby54ImzY2GxJwL601MOuQexvyM7tK3GxdYtaQZ6OgY15_qUALsoJ6gO2zD620keEi_2/exec';
 
 function autoLoad(manual){
   const btn = document.getElementById('btn-autoload');
@@ -1305,10 +1305,15 @@ function autoLoad(manual){
   fetch(url)
     .then(r => {
       if(!r.ok) throw new Error('HTTP ' + r.status + ' — ไม่สามารถดึงข้อมูลได้');
-      return r.arrayBuffer();
+      return r.text();
     })
-    .then(buf => {
-      const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+    .then(base64str => {
+      // Apps Script ส่งกลับมาเป็น base64 string
+      const clean = base64str.trim();
+      const binary = atob(clean);
+      const bytes = new Uint8Array(binary.length);
+      for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+      const wb = XLSX.read(bytes, {type:'array'});
       process(wb, 'Google Sheets (auto)');
       // อัปเดตสถานะ
       const dot = document.getElementById('dot');
