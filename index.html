@@ -1299,23 +1299,35 @@ function autoLoad(manual){
 
   document.getElementById('lov').classList.add('show');
 
-  // เพิ่ม cache-buster เพื่อให้ได้ข้อมูลล่าสุดเสมอ
-  const url = GSHEET_URL + '&cachebust=' + Date.now();
+  // ใช้ JSONP เพื่อหลีกเลี่ยง CORS
+  const cbName = 'gsCallback_' + Date.now();
+  const url = GSHEET_URL + '?callback=' + cbName + '&cachebust=' + Date.now();
 
-  fetch(url)
-    .then(r => {
-      if(!r.ok) throw new Error('HTTP ' + r.status + ' — ไม่สามารถดึงข้อมูลได้');
-      return r.text();
-    })
-    .then(base64str => {
-      // Apps Script ส่งกลับมาเป็น base64 string
-      const clean = base64str.trim();
-      const binary = atob(clean);
+  const timeout = setTimeout(()=>{
+    cleanup();
+    document.getElementById('lov').classList.remove('show');
+    if(esTitle) esTitle.textContent='ไม่สามารถโหลดข้อมูลอัตโนมัติได้';
+    if(esDesc) esDesc.textContent='กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต หรือนำเข้า Excel ด้วยตนเอง';
+    if(btn){ btn.textContent='🔄 รีเฟรช'; btn.disabled=false; }
+    if(manual) alert('ไม่สามารถดึงข้อมูลจาก Google Sheets ได้\n\nกรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+  }, 15000);
+
+  function cleanup(){
+    clearTimeout(timeout);
+    delete window[cbName];
+    const s = document.getElementById('_gs_script');
+    if(s) s.remove();
+  }
+
+  window[cbName] = function(resp){
+    cleanup();
+    try{
+      const base64 = resp.data;
+      const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
       for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
       const wb = XLSX.read(bytes, {type:'array'});
       process(wb, 'Google Sheets (auto)');
-      // อัปเดตสถานะ
       const dot = document.getElementById('dot');
       if(dot){ dot.classList.add('on'); }
       const now = new Date();
@@ -1325,15 +1337,24 @@ function autoLoad(manual){
       if(dateEl){ dateEl.style.display='block'; dateEl.textContent='🕐 อัปเดต: ' + timeStr; }
       if(manual && btn){ btn.textContent='✅ อัปเดตแล้ว'; setTimeout(()=>{ btn.textContent='🔄 รีเฟรช'; btn.disabled=false; }, 2000); }
       else if(btn){ btn.textContent='🔄 รีเฟรช'; btn.disabled=false; }
-    })
-    .catch(err => {
+    } catch(err){
       console.error('[autoLoad] Error:', err);
       document.getElementById('lov').classList.remove('show');
-      if(esTitle) esTitle.textContent='ไม่สามารถโหลดข้อมูลอัตโนมัติได้';
-      if(esDesc) esDesc.textContent='กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต หรือนำเข้า Excel ด้วยตนเอง';
       if(btn){ btn.textContent='🔄 รีเฟรช'; btn.disabled=false; }
-      if(manual) alert('ไม่สามารถดึงข้อมูลจาก Google Sheets ได้\n\n' + err.message + '\n\nกรุณาตรวจสอบ:\n1. Google Sheets ต้องเปิดเป็นสาธารณะ (Anyone with link can view)\n2. การเชื่อมต่ออินเทอร์เน็ต');
-    });
+    }
+  };
+
+  const script = document.createElement('script');
+  script.id = '_gs_script';
+  script.src = url;
+  script.onerror = function(){
+    cleanup();
+    document.getElementById('lov').classList.remove('show');
+    if(esTitle) esTitle.textContent='ไม่สามารถโหลดข้อมูลอัตโนมัติได้';
+    if(esDesc) esDesc.textContent='กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต หรือนำเข้า Excel ด้วยตนเอง';
+    if(btn){ btn.textContent='🔄 รีเฟรช'; btn.disabled=false; }
+  };
+  document.head.appendChild(script);
 }
 
 // โหลดอัตโนมัติเมื่อเปิดหน้าเว็บ
