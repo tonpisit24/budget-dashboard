@@ -1999,6 +1999,15 @@ function process(wb,fname){
   render(map,fname);
 }
 
+function getUtilityTransferUsage(map){
+  return Object.values(map).reduce((sum,item)=>{
+    const transferUsed=(item?.transferOutTo||[]).reduce((itemSum,transfer)=>{
+      return itemSum+(transfer.to==='ค่าสาธารณูปโภค'?(Number(transfer.amount)||0):0);
+    },0);
+    return sum+transferUsed;
+  },0);
+}
+
 function render(map,fname){
   ITEM_MAP=map;
   // Snapshot mode: sync frozen tab data injected by saveSnapshot script
@@ -2033,7 +2042,9 @@ function render(map,fname){
 
   const allItems=CATS.flatMap(c=>c.items);
   const totalB=allItems.reduce((s,n)=>s+(map[n]?.budget||0),0);
-  const totalU=allItems.reduce((s,n)=>s+(map[n]?.used||0),0);
+  const actualTotalU=allItems.reduce((s,n)=>s+(map[n]?.used||0),0);
+  const utilityTransferUsage=getUtilityTransferUsage(map);
+  const totalU=actualTotalU+utilityTransferUsage;
   const totalR=totalB-totalU;
 
   // Animate counter
@@ -2054,7 +2065,7 @@ function render(map,fname){
   const totalPct=totalB>0?parseFloat((totalU/totalB*100).toFixed(2)):0;
   document.getElementById('tg').innerHTML=`
     <div class="sc b"><div class="sc-lbl">งบที่ได้รับทั้งหมด</div><div class="sc-val num" id="sv1">-</div><div class="sc-sub">บาท (รวม 3 หมวด)</div></div>
-    <div class="sc g"><div class="sc-lbl">ใช้ไปแล้ว</div><div class="sc-val num" id="sv2">-</div><div class="sc-sub">บาท</div></div>
+    <div class="sc g"><div class="sc-lbl">ใช้ไปแล้ว</div><div class="sc-val num" id="sv2">-</div><div class="sc-sub">บาท (รวมยอดโยกชดเชยค่าสาธารณูปโภค ${fmt(utilityTransferUsage)})</div></div>
     <div class="sc ${totalR<0?'r':'gr'}"><div class="sc-lbl">งบคงเหลือ</div><div class="sc-val num" id="sv3">-</div><div class="sc-sub">${totalR<0?'⚠ เกินงบ':'บาท'}</div></div>
     <div class="sc ${over>0?'r':'gr'}" style="${over>0?'cursor:pointer;':''}border:1px solid var(--border);" onclick="${over>0?'openOverModal()':''}" title="${over>0?'คลิกเพื่อดูรายการที่เกินงบ':''}">
       <div class="sc-lbl">รายการเกินงบ ${over>0?'<span style="font-size:10px;opacity:.6;font-weight:400">▶ คลิกดูรายละเอียด</span>':''}</div>
@@ -3502,7 +3513,7 @@ function openBurnModal(){
   const activeVals=activeIdx.map(i=>monthlyTotals[i]);
   const avgBurn=activeVals.length>0?parseFloat((activeVals.reduce((a,b)=>a+b,0)/activeVals.length).toFixed(2)):0;
   const totalB=allItems.reduce((s,n)=>s+(ITEM_MAP[n]?.budget||0),0);
-  const totalU=allItems.reduce((s,n)=>s+(ITEM_MAP[n]?.used||0),0);
+  const totalU=allItems.reduce((s,n)=>s+(ITEM_MAP[n]?.used||0),0)+getUtilityTransferUsage(ITEM_MAP);
   const fiscalStart=new Date(2025,9,1); // ต.ค. 2025 (ค.ศ.) = ปีงบ 2569
   const today=new Date();
   const currentFiscalMonth=Math.min(12,Math.max(1,Math.ceil((today-fiscalStart)/(1000*60*60*24*30.44))));
@@ -4189,7 +4200,7 @@ function closeResultModal() {
 function openPrintView() {
   var allItems = CATS.flatMap(function(c){return c.items;});
   var totalB = parseFloat(allItems.reduce(function(s,n){return s+(ITEM_MAP[n]?ITEM_MAP[n].budget:0);},0).toFixed(2));
-  var totalU = parseFloat(allItems.reduce(function(s,n){return s+(ITEM_MAP[n]?ITEM_MAP[n].used:0);},0).toFixed(2));
+  var totalU = parseFloat((allItems.reduce(function(s,n){return s+(ITEM_MAP[n]?ITEM_MAP[n].used:0);},0)+getUtilityTransferUsage(ITEM_MAP)).toFixed(2));
   var totalR = parseFloat((totalB-totalU).toFixed(2));
   var totalPct = totalB>0?parseFloat((totalU/totalB*100).toFixed(2)):0;
   var isOv = totalR<0;
